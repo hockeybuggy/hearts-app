@@ -41,14 +41,12 @@ enum EventType {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    env_logger::init();
+    env_logger::try_init()?;
     lambda::run(handler_fn(connector)).await?;
     Ok(())
 }
 
-async fn connector(
-    event: Event
-) -> Result<Value, Error> {
+async fn connector(event: Event) -> Result<Value, Error> {
     let table_name = env::var("tableName")?;
     let connection = Connection {
         id: event.request_context.connection_id,

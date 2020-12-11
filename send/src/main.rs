@@ -58,7 +58,7 @@ enum Error {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send + 'static>> {
-    env_logger::init();
+    env_logger::try_init()?;
     lambda::run(handler_fn(deliver)).await?;
     Ok(())
 }
@@ -71,9 +71,7 @@ async fn deliver(
     event: Event
 ) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
     log::debug!("recv {}", event.body);
-    let message = event
-        .message()
-        .unwrap_or_else(|| "🏓 pong".into());
+    let message = event.message().unwrap_or_else(|| "🏓 pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
         name: Region::UsEast1.name().into(),

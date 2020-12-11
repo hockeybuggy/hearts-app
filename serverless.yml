@@ -1,7 +1,8 @@
 
-service: aws-rust-websockets # NOTE: update this with your service name
+service: hearts-app
 provider:
   name: aws
+  region: ca-central-1
   runtime: rust
   memorySize: 128
   tracing:
@@ -32,6 +33,8 @@ custom:
   stage: ${opt:stage, self:provider.stage}
   # Set the table name here so we can use it while testing locally
   tableName: ${self:custom.stage}-connections
+  rust:
+    dockerTag: latest
 
 package:
   individually: true
