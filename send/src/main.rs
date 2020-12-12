@@ -3,7 +3,7 @@ use dynomite::{
     AttributeError, DynamoDbExt, FromAttributes, Item,
 };
 use futures::TryStreamExt;
-use lambda::handler_fn;
+use lambda::{handler_fn, Context};
 use rusoto_apigatewaymanagementapi::{
     ApiGatewayManagementApi, ApiGatewayManagementApiClient, PostToConnectionError,
     PostToConnectionRequest,
@@ -68,7 +68,8 @@ fn endpoint(ctx: &RequestContext) -> String {
 }
 
 async fn deliver(
-    event: Event
+    event: Event,
+    _context: Context,
 ) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
     log::debug!("recv {}", event.body);
     let message = event.message().unwrap_or_else(|| "🏓 pong".into());
@@ -147,10 +148,7 @@ mod tests {
         let event =
             serde_json::from_str::<Event>(include_str!("../tests/data/send-something.json"))
                 .expect("failed to deserialize send event");
-        assert_eq!(
-            event.message().and_then(|m| m.message),
-            Some("howdy".into())
-        )
+        assert_eq!(event.message().and_then(|m| Some(m)), Some("howdy".into()))
     }
 
     #[test]

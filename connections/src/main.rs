@@ -2,7 +2,7 @@ use dynomite::{
     dynamodb::{DeleteItemInput, DynamoDb, DynamoDbClient, PutItemInput},
     Item,
 };
-use lambda::handler_fn;
+use lambda::{handler_fn, Context};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
@@ -46,7 +46,10 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn connector(event: Event) -> Result<Value, Error> {
+async fn connector(
+    event: Event,
+    _context: Context,
+) -> Result<Value, Error> {
     let table_name = env::var("tableName")?;
     let connection = Connection {
         id: event.request_context.connection_id,
