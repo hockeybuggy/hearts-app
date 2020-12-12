@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "deploy": "npx serverless deploy --aws-profile=hockeybuggy",
+    "deploy:dev": "npx serverless deploy --aws-profile=hockeybuggy",
     "wscat:dev": "npx wscat -c wss://rse5mmis8e.execute-api.ca-central-1.amazonaws.com/dev"
   },
   "devDependencies": {

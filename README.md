@@ -12,7 +12,7 @@ This app currently doesn't have a "local mode" and it deployed to one
 environment "dev". To deploy the app:
 
 ```sh
-npm run deploy
+npm run deploy:dev
 ```
 
 ## Using the app
