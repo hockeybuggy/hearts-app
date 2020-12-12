@@ -74,7 +74,7 @@ async fn deliver(
     let message = event.message().unwrap_or_else(|| "🏓 pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
-        name: Region::UsEast1.name().into(),
+        name: Region::CaCentral1.name().into(),
         endpoint: endpoint(&event.request_context),
     });
     let delivery = DDB.with(|ddb| {
@@ -164,10 +164,10 @@ mod tests {
     fn formats_endpoint() {
         assert_eq!(
             endpoint(&RequestContext {
-                domain_name: "xxx.execute-api.us-east-1.amazonaws.com".into(),
+                domain_name: "xxx.execute-api.ca-central-1.amazonaws.com".into(),
                 stage: "dev".into()
             }),
-            "https://xxx.execute-api.us-east-1.amazonaws.com/dev"
+            "https://xxx.execute-api.ca-central-1.amazonaws.com/dev"
         )
     }
 }
