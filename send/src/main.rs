@@ -71,7 +71,7 @@ async fn deliver(
     event: Event,
     _context: Context,
 ) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
-    log::debug!("recv {}", event.body);
+    log::info!("recv {}", event.body);
     let message = event.message().unwrap_or_else(|| "🏓 pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
