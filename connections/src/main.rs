@@ -41,7 +41,7 @@ enum EventType {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    env_logger::try_init()?;
+    env_logger::init();
     lambda::run(handler_fn(connector)).await?;
     Ok(())
 }

@@ -58,7 +58,7 @@ enum Error {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send + 'static>> {
-    env_logger::try_init()?;
+    env_logger::init();
     lambda::run(handler_fn(deliver)).await?;
     Ok(())
 }
