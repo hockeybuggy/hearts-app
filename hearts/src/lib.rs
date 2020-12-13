@@ -1,10 +1,13 @@
 use lambda::Context;
 
+use dynomite::dynamodb::DynamoDbClient;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
 mod lobby;
 mod websocket_client;
+
+use websocket_client::WebSocketClient;
 
 #[derive(Deserialize, Debug, PartialEq)]
 struct LobbyActionCreate {
@@ -45,6 +48,11 @@ struct RequestContext {
     domain_name: String,
     stage: String,
 }
+
+fn endpoint(ctx: &RequestContext) -> String {
+    format!("https://{}/{}", ctx.domain_name, ctx.stage)
+}
+
 pub async fn deliver(
     event: Event,
     _context: Context,
@@ -53,12 +61,22 @@ pub async fn deliver(
     let message = event.message();
     log::info!("message {:?}", message);
 
+    let ddb_client = DynamoDbClient::new(Default::default());
+    let ws_client = WebSocketClient::new(&endpoint(&event.request_context));
+    let connection_id = event.request_context.connection_id;
+
     match message {
         Some(Message::LobbyActionCreate(e)) => {
-            lobby::LobbyService::create(e.name, event.request_context.connection_id);
+            lobby::LobbyService::create(&ddb_client, &e.name, &connection_id).await?;
+            ws_client
+                .post_to_connection(&connection_id, json!({"status": "sucess"}))
+                .await?;
         }
         Some(Message::LobbyActionJoin(e)) => {
-            lobby::LobbyService::join(e.lobby_code, e.name);
+            lobby::LobbyService::join(&ddb_client, &e.lobby_code, &e.name);
+            ws_client
+                .post_to_connection(&connection_id, json!({"status": "sucess"}))
+                .await?;
         }
         None => {
             log::info!("Invalid action");

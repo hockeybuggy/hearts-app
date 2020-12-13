@@ -1,10 +1,8 @@
-use std::{convert::TryFrom, error::Error};
-
 use rusoto_apigatewaymanagementapi::{
     ApiGatewayManagementApi, ApiGatewayManagementApiClient, PostToConnectionError,
     PostToConnectionRequest,
 };
-use rusoto_core::{Region, RusotoError};
+use rusoto_core::Region;
 use serde::Serialize;
 use serde_json::json;
 
@@ -37,5 +35,7 @@ impl WebSocketClient {
                     .into(),
             })
             .await
+        // TODO elsewhere we have used `PostToConnectionError::Gone(_)` to delete connection
+        // objects. We should likely be doing something like that.
     }
 }
