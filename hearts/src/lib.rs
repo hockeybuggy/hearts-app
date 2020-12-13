@@ -40,6 +40,7 @@ impl Event {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct RequestContext {
+    connection_id: String,
     domain_name: String,
     stage: String,
 }
@@ -53,7 +54,7 @@ pub async fn deliver(
 
     match message {
         Some(Message::LobbyActionCreate(e)) => {
-            lobby::LobbyService::create(e.name);
+            lobby::LobbyService::create(e.name, event.request_context.connection_id);
         }
         Some(Message::LobbyActionJoin(e)) => {
             lobby::LobbyService::join(e.lobby_code, e.name);

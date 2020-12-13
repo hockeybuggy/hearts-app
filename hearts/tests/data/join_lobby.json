@@ -1,5 +1,6 @@
 {
   "requestContext": {
+    "connectionId": "Wt8z-cgAIAMCIdw=",
     "domainName": "xxx.execute-api.ca-central-1.amazonaws.com",
     "stage": "dev"
   },
