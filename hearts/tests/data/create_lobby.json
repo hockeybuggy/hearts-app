@@ -1,0 +1,7 @@
+{
+  "requestContext": {
+    "domainName": "xxx.execute-api.ca-central-1.amazonaws.com",
+    "stage": "dev"
+  },
+  "body": "{\"type\": \"lobby_action_create\", \"name\":\"Host\"}"
+}

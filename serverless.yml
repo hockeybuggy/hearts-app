@@ -70,6 +70,13 @@ functions:
       - websocket:
           route: send
 
+  # handle { action: hearts, ... } messages
+  hearts:
+    handler: hearts
+    events:
+      - websocket:
+          route: hearts
+
 resources:
   Resources:
     # DynamoDB best practices suggest most applications should only
