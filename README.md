@@ -36,4 +36,6 @@ connected (press CTRL+C to quit)
 < {"message":"🏓 pong"}
 > {"action":"send", "message":"psst"}
 < {"message":"psst"}
+> {"action": "hearts", "type": "lobby_action_create", "name": "Host"}
+> {"action": "hearts", "type": "lobby_action_join", "name": "Host", "lobby_code": "hljk"}
 ```

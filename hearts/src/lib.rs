@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 mod lobby;
+mod websocket_client;
 
 #[derive(Deserialize, Debug, PartialEq)]
 struct LobbyActionCreate {

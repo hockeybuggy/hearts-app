@@ -1,3 +1,6 @@
+use dynomite::Item;
+use uuid::Uuid;
+
 pub struct LobbyService;
 
 #[derive(Debug)]
@@ -24,12 +27,32 @@ impl LobbyService {
             connection_id,
         });
         let lobby_code = "1231".to_owned();
-        let lobby = Lobby {
+        let item = Lobby {
             code: lobby_code,
             players,
-        };
-        log::info!("Lobby: {:?}", lobby);
+        }
+        .into();
+        log::info!("Lobby: {:?}", item);
         // TODO push into db
+        println!(
+            "put_item() result {:#?}",
+            client
+                .put_item(PutItemInput {
+                    table_name: table_name.clone(),
+                    // convert book into it's attribute map representation
+                    item: Book {
+                        id: Uuid::new_v4(),
+                        title: "rust and beyond".into(),
+                        authors: Some(vec![Author {
+                            id: Uuid::new_v4(),
+                            name: "Jim Ferris".into(),
+                        }]),
+                    }
+                    .into(),
+                    ..PutItemInput::default()
+                })
+                .await?
+        );
     }
 
     pub fn join(
