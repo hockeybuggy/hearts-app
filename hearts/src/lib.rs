@@ -53,10 +53,10 @@ fn endpoint(ctx: &RequestContext) -> String {
     format!("https://{}/{}", ctx.domain_name, ctx.stage)
 }
 
-pub async fn deliver(
+async fn inner_deliver(
     event: Event,
     _context: Context,
-) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
+) -> Result<(), Box<dyn std::error::Error + Sync + Send + 'static>> {
     log::info!("recv {}", event.body);
     let message = event.message();
     log::info!("message {:?}", message);
@@ -82,10 +82,23 @@ pub async fn deliver(
             log::info!("Invalid action");
         }
     }
+    Ok(())
+}
 
-    Ok(json!({
-        "statusCode": 200
-    }))
+pub async fn deliver(
+    event: Event,
+    context: Context,
+) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
+    let inner_result = inner_deliver(event, context).await;
+    match inner_result {
+        Ok(_) => {
+            return Ok(json!({ "statusCode": 200 }));
+        }
+        Err(e) => {
+            log::error!("{:?}", e);
+            return Err(e);
+        }
+    };
 }
 
 #[cfg(test)]

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::env;
+use std::error::Error;
+use std::fmt;
 
 use dynomite::{
     dynamodb::{DynamoDb, DynamoDbClient, GetItemInput, PutItemInput},
@@ -22,6 +24,35 @@ pub struct Lobby {
     id: Uuid,
     code: String,
     players: Vec<Player>,
+    // introduce a sequence number?
+}
+
+#[derive(Debug)]
+struct LobbyServiceError {
+    details: String,
+}
+
+impl LobbyServiceError {
+    fn new(msg: &str) -> LobbyServiceError {
+        LobbyServiceError {
+            details: msg.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for LobbyServiceError {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter,
+    ) -> fmt::Result {
+        write!(f, "{}", self.details)
+    }
+}
+
+impl Error for LobbyServiceError {
+    fn description(&self) -> &str {
+        &self.details
+    }
 }
 
 impl LobbyService {
@@ -61,9 +92,7 @@ impl LobbyService {
         let maybe_lobby = LobbyRepo::get(ddb, &Uuid::parse_str(lobby_code)?).await?;
         log::info!("LobbyService::join get result: {:?}", &maybe_lobby);
 
-        // TODO unwrapping this is not good. It's pretty valid for the game there are trying to
-        // join to not exist
-        Ok(maybe_lobby.unwrap())
+        maybe_lobby.ok_or(Box::new(LobbyServiceError::new("Could not get Lobby")))
         // TODO Get from DB, add player, then update db (in race condition tollerant way)
     }
 }
