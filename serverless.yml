@@ -79,6 +79,8 @@ functions:
 
 resources:
   Resources:
+    # TODO consider if using the same table for connections and "hearts" games?
+
     # DynamoDB best practices suggest most applications should only
     # have a single table. For resources check out the follow links...
     # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/best-practices.html

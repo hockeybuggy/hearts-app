@@ -67,15 +67,15 @@ pub async fn deliver(
 
     match message {
         Some(Message::LobbyActionCreate(e)) => {
-            lobby::LobbyService::create(&ddb_client, &e.name, &connection_id).await?;
+            let lobby = lobby::LobbyService::create(&ddb_client, &e.name, &connection_id).await?;
             ws_client
-                .post_to_connection(&connection_id, json!({"status": "sucess"}))
+                .post_to_connection(&connection_id, json!({"status": "success", "lobby": lobby}))
                 .await?;
         }
         Some(Message::LobbyActionJoin(e)) => {
-            lobby::LobbyService::join(&ddb_client, &e.lobby_code, &e.name);
+            let lobby = lobby::LobbyService::join(&ddb_client, &e.lobby_code, &e.name).await?;
             ws_client
-                .post_to_connection(&connection_id, json!({"status": "sucess"}))
+                .post_to_connection(&connection_id, json!({"status": "success", "lobby": lobby}))
                 .await?;
         }
         None => {

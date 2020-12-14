@@ -10,7 +10,7 @@ env_logger = "0.8"
 futures = "0.3"
 lambda = { git = "https://github.com/awslabs/aws-lambda-rust-runtime/", branch = "master"}
 log = "0.4"
-uuid = "0.8"
+uuid = { version = "0.8", features = ["v4", "serde"] }
 rusoto_apigatewaymanagementapi = "0.45"
 rusoto_core = "0.45"
 serde = { version = "1.0", features = ["derive"] }
