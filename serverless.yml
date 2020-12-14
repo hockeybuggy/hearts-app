@@ -21,6 +21,7 @@ provider:
       Action:
         - dynamodb:Scan
         - dynamodb:PutItem
+        - dynamodb:GetItem
         - dynamodb:DeleteItem
       # Restrict our IAM role permissions to
       # the specific table for the stage
