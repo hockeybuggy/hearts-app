@@ -39,3 +39,7 @@ connected (press CTRL+C to quit)
 > {"action": "hearts", "type": "lobby_action_create", "name": "Host"}
 > {"action": "hearts", "type": "lobby_action_join", "name": "Host", "lobby_code": "hljk"}
 ```
+
+## Running a test
+
+There is `e2e_tests` crate within this project which will run through a game.

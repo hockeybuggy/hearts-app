@@ -1,6 +1,6 @@
-use lambda::Context;
-
+use chrono::Utc;
 use dynomite::dynamodb::DynamoDbClient;
+use lambda::Context;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -63,17 +63,26 @@ async fn inner_deliver(
 
     let ddb_client = DynamoDbClient::new(Default::default());
     let ws_client = WebSocketClient::new(&endpoint(&event.request_context));
+    let now = Utc::now();
     let connection_id = event.request_context.connection_id;
 
     match message {
         Some(Message::LobbyActionCreate(e)) => {
-            let lobby = lobby::LobbyService::create(&ddb_client, &e.name, &connection_id).await?;
+            let lobby =
+                lobby::LobbyService::create(&ddb_client, &now, &e.name, &connection_id).await?;
             ws_client
                 .post_to_connection(&connection_id, json!({"status": "success", "lobby": lobby}))
                 .await?;
         }
         Some(Message::LobbyActionJoin(e)) => {
-            let lobby = lobby::LobbyService::join(&ddb_client, &e.lobby_code, &e.name).await?;
+            let lobby = lobby::LobbyService::join(
+                &ddb_client,
+                &now,
+                &e.lobby_code,
+                &e.name,
+                &connection_id,
+            )
+            .await?;
             ws_client
                 .post_to_connection(&connection_id, json!({"status": "success", "lobby": lobby}))
                 .await?;
