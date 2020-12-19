@@ -124,7 +124,7 @@ async fn main() {
         .collect::<Vec<String>>()
         .join(", ");
     info!(
-        "{} recieves a success message with the lobby code {}.",
+        "{} recieves a update message with the lobby code {}.",
         &players.host.name, &create_lobby_response.lobby.id,
     );
     info!("The lobby has the players: {}", create_lobby_player_names);
@@ -145,28 +145,9 @@ async fn main() {
         .await
         .expect("Failed to send join_lobby_message");
 
-    // TODO The host should receive a lobby updated message
-    // let message = receive_message(&mut players.host)
-    //     .await
-    //     .expect(&format!("{} failed to receive update message", &players.host.name).to_owned());
-    // let join_lobby_response: messages::JoinLobbyReponse = serde_json::from_str(&message).unwrap();
-    // debug!("{:?}", join_lobby_response);
-
-    // let join_lobby_player_names: String = join_lobby_response
-    //     .lobby
-    //     .players
-    //     .iter()
-    //     .map(|p| p.name.clone())
-    //     .collect::<Vec<String>>()
-    //     .join(", ");
-    // info!(
-    //     "{} receives a update message containing the players: {}",
-    //     &players.host.name, join_lobby_player_names
-    // );
-
-    let message = receive_message(&mut players.amigo)
+    let message = receive_message(&mut players.host)
         .await
-        .expect(&format!("{} failed to receive success message", &players.host.name).to_owned());
+        .expect(&format!("{} failed to receive update message", &players.host.name).to_owned());
     let join_lobby_response: messages::JoinLobbyReponse = serde_json::from_str(&message).unwrap();
     debug!("{:?}", join_lobby_response);
 
@@ -178,7 +159,25 @@ async fn main() {
         .collect::<Vec<String>>()
         .join(", ");
     info!(
-        "{} receives a success message containing the players: {}",
+        "{} receives a update message containing the players: {}",
+        &players.host.name, join_lobby_player_names
+    );
+
+    let message = receive_message(&mut players.amigo)
+        .await
+        .expect(&format!("{} failed to receive update message", &players.host.name).to_owned());
+    let join_lobby_response: messages::JoinLobbyReponse = serde_json::from_str(&message).unwrap();
+    debug!("{:?}", join_lobby_response);
+
+    let join_lobby_player_names: String = join_lobby_response
+        .lobby
+        .players
+        .iter()
+        .map(|p| p.name.clone())
+        .collect::<Vec<String>>()
+        .join(", ");
+    info!(
+        "{} receives a update message containing the players: {}",
         &players.amigo.name, join_lobby_player_names
     );
 

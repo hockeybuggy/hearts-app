@@ -17,8 +17,8 @@ pub struct LobbyService;
 
 #[derive(Attributes, Debug, Serialize, Clone)]
 pub struct Player {
-    name: String,
-    connection_id: String,
+    pub name: String,
+    pub connection_id: String,
 }
 
 pub type LobbyId = Uuid;
@@ -30,7 +30,7 @@ pub struct Lobby {
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     code: String,
-    players: Vec<Player>,
+    pub players: Vec<Player>,
 }
 
 #[derive(Debug)]

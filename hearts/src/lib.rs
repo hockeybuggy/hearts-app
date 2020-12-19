@@ -62,17 +62,23 @@ async fn inner_deliver(
     log::info!("message {:?}", message);
 
     let ddb_client = DynamoDbClient::new(Default::default());
-    let ws_client = WebSocketClient::new(&endpoint(&event.request_context));
     let now = Utc::now();
+    let endpoint = endpoint(&event.request_context);
     let connection_id = event.request_context.connection_id;
 
     match message {
         Some(Message::LobbyActionCreate(e)) => {
             let lobby =
                 lobby::LobbyService::create(&ddb_client, &now, &e.name, &connection_id).await?;
-            ws_client
-                .post_to_connection(&connection_id, json!({"status": "success", "lobby": lobby}))
-                .await?;
+            for player in lobby.players.iter() {
+                let ws_client = WebSocketClient::new(&endpoint);
+                ws_client
+                    .post_to_connection(
+                        &player.connection_id,
+                        json!({"type": "update", "lobby": lobby}),
+                    )
+                    .await?;
+            }
         }
         Some(Message::LobbyActionJoin(e)) => {
             let lobby = lobby::LobbyService::join(
@@ -83,9 +89,15 @@ async fn inner_deliver(
                 &connection_id,
             )
             .await?;
-            ws_client
-                .post_to_connection(&connection_id, json!({"status": "success", "lobby": lobby}))
-                .await?;
+            for player in lobby.players.iter() {
+                let ws_client = WebSocketClient::new(&endpoint);
+                ws_client
+                    .post_to_connection(
+                        &player.connection_id,
+                        json!({"type": "update", "lobby": lobby}),
+                    )
+                    .await?;
+            }
         }
         None => {
             log::info!("Invalid action");
