@@ -1,5 +1,8 @@
+use std::env;
+
+use dotenv::dotenv;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
+use log::{debug, info};
 use serde_json::{json, Value};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::tungstenite::Message;
@@ -21,7 +24,7 @@ where
         .ws_stream
         .send(Message::Text(message.to_string()))
         .await?;
-    println!("{} Sent: {}", &player.name, message);
+    debug!("{} Sent: {}", &player.name, message);
     return Ok(());
 }
 
@@ -33,7 +36,7 @@ where
 {
     let message = player.ws_stream.next().await.unwrap().unwrap();
     let message_text = &message.into_text().unwrap();
-    println!("{} Received: {}", player.name, message_text);
+    debug!("{} Received: {}", player.name, message_text);
     return Ok(message_text.to_string());
 }
 
@@ -42,40 +45,64 @@ struct Players<T> {
     amigo: Player<T>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Lobby {
-    id: String,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct CreateLobbyReponse {
-    lobby: Lobby,
+mod messages {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct Player {
+        pub name: String,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct Lobby {
+        pub id: String,
+        pub players: Vec<Player>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct CreateLobbyReponse {
+        pub lobby: Lobby,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct JoinLobbyReponse {
+        pub lobby: Lobby,
+    }
 }
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     env_logger::init();
 
-    // TODO get from env
-    let connect_addr = "wss://rse5mmis8e.execute-api.ca-central-1.amazonaws.com/dev".to_owned();
-    let url = url::Url::parse(&connect_addr).unwrap();
+    let websocket_url = env::var("WEBSOCKET_URL").expect("Could not get WEBSOCKET_URL env var");
+    let url = url::Url::parse(&websocket_url).expect("WEBSOCKET_URL not a valid url");
 
-    let (host_ws_stream, _) = connect_async(url.clone()).await.expect("Failed to connect");
-    let (amigo_ws_stream, _) = connect_async(url.clone()).await.expect("Failed to connect");
+    let host_player_name = "Host".to_owned();
+    let amigo_player_name = "Amgio".to_owned();
+    info!("Opening websocket connections for the simulated players.");
+    let (host_ws_stream, _) = connect_async(url.clone())
+        .await
+        .expect(&format!("{} failed to connect", &host_player_name).to_owned());
+    let (amigo_ws_stream, _) = connect_async(url.clone())
+        .await
+        .expect(&format!("{} failed to connect", &amigo_player_name).to_owned());
     let mut players = Players {
         host: Player {
-            name: "Host".to_owned(),
+            name: host_player_name,
             ws_stream: host_ws_stream,
         },
         amigo: Player {
-            name: "Amigo".to_owned(),
+            name: amigo_player_name,
             ws_stream: amigo_ws_stream,
         },
     };
 
+    info!("{} creates a lobby.", &players.host.name);
     let create_lobby_message = json!({
       "action": "hearts",
       "type": "lobby_action_create",
-      "name": "Host"
+      "name": json!(players.host.name),
     });
 
     send_message(&mut players.host, create_lobby_message)
@@ -84,32 +111,79 @@ async fn main() {
 
     let message = receive_message(&mut players.host)
         .await
-        .expect("Failed to receive respond to create_lobby_message");
+        .expect("Failed to receive response to create_lobby_message");
 
     // Get `lobby.id` from the message.
-    let create_lobby_response: CreateLobbyReponse = serde_json::from_str(&message).unwrap();
-
-    // Send join
-    println!("{} lobby: {:?}", &players.host.name, &create_lobby_response);
+    let create_lobby_response: messages::CreateLobbyReponse =
+        serde_json::from_str(&message).unwrap();
+    let create_lobby_player_names: String = create_lobby_response
+        .lobby
+        .players
+        .iter()
+        .map(|p| p.name.clone())
+        .collect::<Vec<String>>()
+        .join(", ");
+    info!(
+        "{} recieves a success message with the lobby code {}.",
+        &players.host.name, &create_lobby_response.lobby.id,
+    );
+    info!("The lobby has the players: {}", create_lobby_player_names);
 
     let join_lobby_message = json!({
       "action": "hearts",
       "type": "lobby_action_join",
-      "name": "Amigo",
+      "name": json!(players.amigo.name),
       // TODO this should be the `lobby_code so that people don't have to type out a uuid
       "lobby_code": json!(create_lobby_response.lobby.id),
     });
 
+    info!(
+        "{} sends the lobby code {} to their friend Amigo.",
+        &players.host.name, create_lobby_response.lobby.id
+    );
     send_message(&mut players.amigo, join_lobby_message)
         .await
         .expect("Failed to send join_lobby_message");
 
+    // TODO The host should receive a lobby updated message
+    // let message = receive_message(&mut players.host)
+    //     .await
+    //     .expect(&format!("{} failed to receive update message", &players.host.name).to_owned());
+    // let join_lobby_response: messages::JoinLobbyReponse = serde_json::from_str(&message).unwrap();
+    // debug!("{:?}", join_lobby_response);
+
+    // let join_lobby_player_names: String = join_lobby_response
+    //     .lobby
+    //     .players
+    //     .iter()
+    //     .map(|p| p.name.clone())
+    //     .collect::<Vec<String>>()
+    //     .join(", ");
+    // info!(
+    //     "{} receives a update message containing the players: {}",
+    //     &players.host.name, join_lobby_player_names
+    // );
+
     let message = receive_message(&mut players.amigo)
         .await
-        .expect("Failed to receive respond to join_lobby_message");
+        .expect(&format!("{} failed to receive success message", &players.host.name).to_owned());
+    let join_lobby_response: messages::JoinLobbyReponse = serde_json::from_str(&message).unwrap();
+    debug!("{:?}", join_lobby_response);
+
+    let join_lobby_player_names: String = join_lobby_response
+        .lobby
+        .players
+        .iter()
+        .map(|p| p.name.clone())
+        .collect::<Vec<String>>()
+        .join(", ");
+    info!(
+        "{} receives a success message containing the players: {}",
+        &players.amigo.name, join_lobby_player_names
+    );
 
     players.host.ws_stream.close(None).await.unwrap();
     players.amigo.ws_stream.close(None).await.unwrap();
 
-    println!("Websockets closed: 👋");
+    info!("Websockets closed: 👋");
 }
