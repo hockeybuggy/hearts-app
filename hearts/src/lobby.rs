@@ -6,6 +6,7 @@ use std::fmt;
 use chrono::{DateTime, Utc};
 
 use dynomite::{
+    attr_map,
     dynamodb::{DynamoDb, DynamoDbClient, GetItemInput, PutItemInput},
     AttributeValue, Attributes, FromAttributes, Item,
 };
@@ -26,7 +27,8 @@ pub type LobbyId = Uuid;
 pub struct Lobby {
     #[dynomite(partition_key)]
     id: LobbyId,
-    timestamp: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
     code: String,
     players: Vec<Player>,
 }
@@ -76,7 +78,8 @@ impl LobbyService {
         let lobby_code = "1231".to_owned();
         let lobby = Lobby {
             id: Uuid::new_v4(),
-            timestamp: now.clone(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
             code: lobby_code,
             players,
         };
@@ -110,12 +113,12 @@ impl LobbyService {
             name: player_name.to_string(),
             connection_id: connection_id.to_string(),
         });
-        modified_lobby.timestamp = now.clone();
+        modified_lobby.updated_at = now.clone();
 
         let new_lobby = LobbyRepo::update(
             ddb,
             &current_lobby.id,
-            current_lobby.timestamp,
+            &current_lobby.updated_at,
             &modified_lobby,
         )
         .await?;
@@ -183,20 +186,28 @@ impl LobbyRepo {
     pub async fn update(
         ddb: &DynamoDbClient,
         lobby_id: &LobbyId,
-        _previous_timestamp: DateTime<Utc>,
+        previous_updated_at: &DateTime<Utc>,
         lobby: &Lobby,
     ) -> Result<Lobby, Box<dyn std::error::Error + Sync + Send + 'static>> {
         let item = lobby.clone().into();
         let table_name = env::var("tableName")?;
+        log::debug!(
+            "LobbyRepo::update updated_at ({}), previous ({})",
+            &lobby.updated_at,
+            previous_updated_at,
+        );
         let result = ddb
             .put_item(PutItemInput {
                 table_name: table_name.clone(),
-                // TODO use the previous_timestamp in a conditional expression
+                condition_expression: Some("updated_at = :previousUpdatedAt".to_string()),
+                expression_attribute_values: Some(
+                    attr_map! { ":previousUpdatedAt" => previous_updated_at },
+                ),
                 item,
                 ..PutItemInput::default()
             })
             .await?;
-        log::info!("LobbyRepo::put result: {:?}", result);
+        log::info!("LobbyRepo::update result: {:?}", result);
 
         Ok(LobbyRepo::get(ddb, lobby_id)
             .await?
