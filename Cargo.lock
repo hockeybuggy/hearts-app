@@ -267,7 +267,7 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
- "tokio 1.0.0",
+ "tokio 0.2.24",
 ]
 
 [[package]]
@@ -350,7 +350,7 @@ version = "0.1.0"
 dependencies = [
  "lambda",
  "serde_json",
- "tokio 1.0.0",
+ "tokio 0.2.24",
 ]
 
 [[package]]
@@ -746,7 +746,7 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
- "tokio 1.0.0",
+ "tokio 0.2.24",
 ]
 
 [[package]]
@@ -1784,7 +1784,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "tokio 1.0.0",
+ "tokio 0.2.24",
 ]
 
 [[package]]
