@@ -2,25 +2,26 @@ use wasm_bindgen::prelude::*;
 
 use anyhow::Error;
 use serde_derive::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use yew::format::Json;
 use yew::prelude::*;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 
 struct Model {
     link: ComponentLink<Self>,
-    data: Option<u32>,
+    lobby: Option<Lobby>,
     ws: Option<WebSocketTask>,
 }
 
 impl Model {
-    fn view_data(&self) -> Html {
-        if let Some(value) = self.data {
+    fn view_lobby(&self) -> Html {
+        if let Some(lobby) = &self.lobby {
             html! {
-                <p>{ value }</p>
+                <p>{ lobby.code.clone() }</p>
             }
         } else {
             html! {
-                <p>{ "Data hasn't fetched yet." }</p>
+                <p>{ "Not in a lobby." }</p>
             }
         }
     }
@@ -28,27 +29,27 @@ impl Model {
     fn view_connection_status(&self) -> Html {
         if self.ws.is_some() {
             html! {
-                <>
-                    <p>{ "Connected" }</p>
+                <div class="flex justify-end p-4 shadow-md">
+                    <p>{ "✓" }</p>
                     <button
-                        class="w-32 m-4 bg-red-200 hover:bg-red-300 rounded-lg shadow-md"
+                        class="w-32 bg-red-200 hover:bg-red-300 rounded-lg shadow-md"
                         onclick=self.link.callback(|_| Msg::WsAction(WsAction::Disconnect))
                     >
                         { "Disconnect" }
                     </button>
-                </>
+                </div>
             }
         } else {
             html! {
-                <>
-                    <p>{ "Not connected" }</p>
+                <div class="flex justify-end p-4 shadow-md">
+                    <p>{ "𝙓" }</p>
                     <button
-                        class="w-32 m-4 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                        class="w-32 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
                         onclick=self.link.callback(|_| Msg::WsAction(WsAction::Connect))
                     >
                         { "Connect" }
                     </button>
-                </>
+                </div>
             }
         }
     }
@@ -56,7 +57,7 @@ impl Model {
 
 enum WsAction {
     Connect,
-    SendData,
+    SendData(Value),
     Disconnect,
     Lost,
 }
@@ -67,16 +68,27 @@ enum Msg {
     WsReady(Result<WsResponse, Error>),
 }
 
-/// This type is used as a request which sent to websocket connection.
-#[derive(Serialize, Debug)]
-struct WsRequest {
-    value: u32,
+// TODO the messages between the client and the server should be extracted into another crate.
+
+#[derive(Deserialize, Debug)]
+pub struct Player {
+    pub name: String,
+    pub connection_id: String,
+}
+
+pub type LobbyId = String;
+
+#[derive(Deserialize, Debug)]
+pub struct Lobby {
+    id: LobbyId,
+    code: String,
+    pub players: Vec<Player>,
 }
 
 /// This type is an expected response from a websocket connection.
 #[derive(Deserialize, Debug)]
 pub struct WsResponse {
-    value: u32,
+    lobby: Lobby,
 }
 
 impl Component for Model {
@@ -89,7 +101,7 @@ impl Component for Model {
     ) -> Self {
         Self {
             link,
-            data: None,
+            lobby: None,
             ws: None,
         }
     }
@@ -117,18 +129,23 @@ impl Component for Model {
                     .unwrap();
                     self.ws = Some(task);
                 }
-                WsAction::SendData => {
-                    let request = WsRequest { value: 321 };
-                    self.ws.as_mut().unwrap().send(Json(&request));
+                WsAction::SendData(data) => {
+                    log::info!("Sending data");
+                    self.ws.as_mut().unwrap().send(Json(&data));
                 }
                 WsAction::Disconnect => {
+                    log::info!("Disconnecting from WebSocket");
                     self.ws.take();
                 }
                 WsAction::Lost => {
+                    log::info!("WebSocket connection lost.");
                     self.ws = None;
                 }
             },
-            Msg::WsReady(response) => self.data = response.map(|data| data.value).ok(),
+            Msg::WsReady(response) => {
+                log::info!("Received message from WebSocket, {:?}", &response);
+                self.lobby = response.map(|data| data.lobby).ok();
+            }
         }
         true
     }
@@ -150,11 +167,18 @@ impl Component for Model {
                 <button
                     class="w-32 m-4 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
                     disabled=self.ws.is_none()
-                    onclick=self.link.callback(|_| Msg::WsAction(WsAction::SendData))
+                    onclick=self.link.callback(|_| {
+                        let create_lobby_message = json!({
+                          "action": "hearts",
+                          "type": "lobby_action_create",
+                          "name": "Host",  // TODO make this a field they can edit
+                        });
+                        Msg::WsAction(WsAction::SendData(create_lobby_message))
+                    })
                 >
                     { "Create lobby" }
                 </button>
-                <div>{ self.view_data() }</div>
+                <div>{ self.view_lobby() }</div>
             </div>
         }
     }
@@ -164,6 +188,7 @@ impl Component for Model {
         first_render: bool,
     ) {
         if first_render {
+            log::info!("Connecting to Websocket");
             self.link.send_message(Msg::WsAction(WsAction::Connect));
         }
     }
@@ -171,5 +196,6 @@ impl Component for Model {
 
 #[wasm_bindgen(start)]
 pub fn run_app() {
+    wasm_logger::init(wasm_logger::Config::default());
     App::<Model>::new().mount_to_body();
 }
