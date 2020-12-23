@@ -4,14 +4,13 @@ use std::error::Error;
 use std::fmt;
 
 use chrono::{DateTime, Utc};
-
 use dynomite::{
     attr_map,
     dynamodb::{DynamoDb, DynamoDbClient, GetItemInput, PutItemInput},
     AttributeValue, Attributes, FromAttributes, Item,
 };
+use nanoid::nanoid;
 use serde::Serialize;
-use uuid::Uuid;
 
 pub struct LobbyService;
 
@@ -21,7 +20,7 @@ pub struct Player {
     pub connection_id: String,
 }
 
-pub type LobbyId = Uuid;
+pub type LobbyId = String;
 
 #[derive(Item, Debug, Serialize, Clone)]
 pub struct Lobby {
@@ -29,7 +28,6 @@ pub struct Lobby {
     id: LobbyId,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
-    code: String,
     pub players: Vec<Player>,
 }
 
@@ -75,12 +73,16 @@ impl LobbyService {
             name: host_name.to_string(),
             connection_id: connection_id.to_string(),
         });
-        let lobby_code = "1231".to_owned();
+        let lobby_code_alphabet: [char; 36] = [
+            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+            'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x',
+            'y', 'z',
+        ];
+        let lobby_code = nanoid!(4, &lobby_code_alphabet);
         let lobby = Lobby {
-            id: Uuid::new_v4(),
+            id: lobby_code,
             created_at: now.clone(),
             updated_at: now.clone(),
-            code: lobby_code,
             players,
         };
 
@@ -92,15 +94,13 @@ impl LobbyService {
     pub async fn join(
         ddb: &DynamoDbClient,
         now: &DateTime<Utc>,
-        lobby_code: &String,
+        lobby_id: &LobbyId,
         player_name: &String,
         connection_id: &String,
     ) -> Result<Lobby, Box<dyn std::error::Error + Sync + Send + 'static>> {
-        log::info!("Join: {} {}", lobby_code, player_name);
+        log::info!("Join: {} {}", lobby_id, player_name);
 
-        // TODO this is logically wrong at the moment since we're not using lobby codes, but the
-        // lobby ids.
-        let maybe_lobby = LobbyRepo::get(ddb, &Uuid::parse_str(lobby_code)?).await?;
+        let maybe_lobby = LobbyRepo::get(ddb, lobby_id).await?;
         log::info!("LobbyService::join get result: {:?}", &maybe_lobby);
 
         let current_lobby = maybe_lobby
@@ -133,7 +133,7 @@ impl LobbyRepo {
     /// Retrieve a single Lobby by Id.
     pub async fn get(
         ddb: &DynamoDbClient,
-        lobby_id: &Uuid,
+        lobby_code: &LobbyId,
     ) -> Result<Option<Lobby>, Box<dyn std::error::Error + Sync + Send + 'static>> {
         let table_name = env::var("tableName")?;
         let maybe_lobby = ddb
@@ -144,7 +144,7 @@ impl LobbyRepo {
                     x.insert(
                         "id".to_owned(),
                         AttributeValue {
-                            s: Some(lobby_id.to_string()),
+                            s: Some(lobby_code.to_string()),
                             ..AttributeValue::default()
                         },
                     );

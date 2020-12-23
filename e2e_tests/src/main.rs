@@ -124,7 +124,7 @@ async fn main() {
         .collect::<Vec<String>>()
         .join(", ");
     info!(
-        "{} recieves a update message with the lobby code {}.",
+        "{} recieves a update message with the lobby id {}.",
         &players.host.name, &create_lobby_response.lobby.id,
     );
     info!("The lobby has the players: {}", create_lobby_player_names);
@@ -133,7 +133,6 @@ async fn main() {
       "action": "hearts",
       "type": "lobby_action_join",
       "name": json!(players.amigo.name),
-      // TODO this should be the `lobby_code so that people don't have to type out a uuid
       "lobby_code": json!(create_lobby_response.lobby.id),
     });
 

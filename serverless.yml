@@ -19,7 +19,6 @@ provider:
         - "arn:aws:execute-api:#{AWS::Region}:#{AWS::AccountId}:*/${self:custom.stage}/POST/@connections/*"
     - Effect: Allow
       Action:
-        - dynamodb:Scan
         - dynamodb:PutItem
         - dynamodb:GetItem
         - dynamodb:DeleteItem

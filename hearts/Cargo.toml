@@ -5,6 +5,7 @@ authors = ["Douglas Anderson <hockeybuggy@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+nanoid = "0.3"
 chrono = "0.4"
 dynomite = "0.10"
 env_logger = "0.8"

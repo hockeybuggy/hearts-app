@@ -1,7 +1,9 @@
+#![recursion_limit = "256"]
+
 use wasm_bindgen::prelude::*;
 
 use anyhow::Error;
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 use serde_json::{json, Value};
 use yew::format::Json;
 use yew::prelude::*;
@@ -10,18 +12,95 @@ use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask}
 struct Model {
     link: ComponentLink<Self>,
     lobby: Option<Lobby>,
+    name: String,
+    lobby_code_input: String,
     ws: Option<WebSocketTask>,
 }
 
 impl Model {
     fn view_lobby(&self) -> Html {
         if let Some(lobby) = &self.lobby {
+            let player_names = lobby
+                .players
+                .iter()
+                .map(|p| p.name.clone())
+                .collect::<Vec<String>>()
+                .join(", ");
+
             html! {
-                <p>{ lobby.code.clone() }</p>
+                <div>
+                    <p>{ "Lobby code:" }{ lobby.id.clone() }</p>
+                    <p>{ "All players: "}{ player_names }</p>
+                </div>
+            }
+        } else {
+            let create_lobby_message = json!({
+              "action": "hearts",
+              "type": "lobby_action_create",
+              "name": self.name.clone(),
+            });
+            let join_lobby_message = json!({
+              "action": "hearts",
+              "type": "lobby_action_join",
+              "lobby_code": self.lobby_code_input.clone(),
+              "name": self.name.clone(),
+            });
+            html! {
+                <div>
+                    <p>{ "Not in a lobby." }</p>
+
+                    <div>
+                        <button
+                            class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                            disabled={self.ws.is_none() || self.name.is_empty()}
+                            onclick=self.link.callback(move |_| {
+                                Msg::WsAction(WsAction::SendData(create_lobby_message.clone()))
+                            })
+                        >
+                            { "Create lobby" }
+                        </button>
+                    </div>
+
+                    <div>
+                        <input
+                            value=&self.lobby_code_input
+                            oninput=self.link.callback(|e: InputData| Msg::LobbyCodeInputChange(e.value))
+                            placeholder="Lobby code"
+                            class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                        />
+                        <button
+                            class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                            disabled={self.ws.is_none() || self.name.is_empty()}
+                            onclick=self.link.callback(move |_| {
+                                Msg::WsAction(WsAction::SendData(join_lobby_message.clone()))
+                            })
+                        >
+                            { "Join lobby" }
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    }
+
+    fn view_name(&self) -> Html {
+        if self.lobby.is_some() {
+            html! {
+                <div>
+                    { "Your name: " }
+                    { self.name.clone() }
+                </div>
             }
         } else {
             html! {
-                <p>{ "Not in a lobby." }</p>
+                <div>
+                    <input
+                        value=&self.name
+                        oninput=self.link.callback(|e: InputData| Msg::NameInputChange(e.value))
+                        placeholder="Pick a name your friends will see."
+                        class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                    />
+                </div>
             }
         }
     }
@@ -66,6 +145,8 @@ enum Msg {
     Ignore,
     WsAction(WsAction),
     WsReady(Result<WsResponse, Error>),
+    NameInputChange(String),
+    LobbyCodeInputChange(String),
 }
 
 // TODO the messages between the client and the server should be extracted into another crate.
@@ -81,7 +162,6 @@ pub type LobbyId = String;
 #[derive(Deserialize, Debug)]
 pub struct Lobby {
     id: LobbyId,
-    code: String,
     pub players: Vec<Player>,
 }
 
@@ -101,7 +181,9 @@ impl Component for Model {
     ) -> Self {
         Self {
             link,
+            name: "".to_owned(),
             lobby: None,
+            lobby_code_input: "".to_owned(),
             ws: None,
         }
     }
@@ -146,6 +228,12 @@ impl Component for Model {
                 log::info!("Received message from WebSocket, {:?}", &response);
                 self.lobby = response.map(|data| data.lobby).ok();
             }
+            Msg::NameInputChange(new_value) => {
+                self.name = new_value;
+            }
+            Msg::LobbyCodeInputChange(new_value) => {
+                self.lobby_code_input = new_value;
+            }
         }
         true
     }
@@ -164,20 +252,7 @@ impl Component for Model {
         html! {
             <div>
                 <div>{ self.view_connection_status() }</div>
-                <button
-                    class="w-32 m-4 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
-                    disabled=self.ws.is_none()
-                    onclick=self.link.callback(|_| {
-                        let create_lobby_message = json!({
-                          "action": "hearts",
-                          "type": "lobby_action_create",
-                          "name": "Host",  // TODO make this a field they can edit
-                        });
-                        Msg::WsAction(WsAction::SendData(create_lobby_message))
-                    })
-                >
-                    { "Create lobby" }
-                </button>
+                <div>{ self.view_name() }</div>
                 <div>{ self.view_lobby() }</div>
             </div>
         }
