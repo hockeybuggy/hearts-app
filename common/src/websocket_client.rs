@@ -3,7 +3,6 @@ use rusoto_apigatewaymanagementapi::{
     PostToConnectionRequest,
 };
 use rusoto_core::Region;
-use serde::Serialize;
 use serde_json::json;
 
 pub struct WebSocketClient {
@@ -19,14 +18,11 @@ impl WebSocketClient {
         return Self { client };
     }
 
-    pub async fn post_to_connection<T>(
+    pub async fn post_to_connection(
         self,
         connection_id: &String,
-        message: T,
-    ) -> Result<(), rusoto_core::RusotoError<PostToConnectionError>>
-    where
-        T: Serialize,
-    {
+        message: messages::Message,
+    ) -> Result<(), rusoto_core::RusotoError<PostToConnectionError>> {
         self.client
             .post_to_connection(PostToConnectionRequest {
                 connection_id: connection_id.clone(),

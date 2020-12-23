@@ -3,7 +3,6 @@
 use wasm_bindgen::prelude::*;
 
 use anyhow::Error;
-use serde_derive::Deserialize;
 use serde_json::{json, Value};
 use yew::format::Json;
 use yew::prelude::*;
@@ -16,6 +15,7 @@ struct Model {
     lobby_code_input: String,
     lobby_chat_input: String,
     connecting_to_lobby: bool,
+    chat_messages: Vec<messages::LobbyMessageResponse>,
     ws: Option<WebSocketTask>,
 }
 
@@ -39,11 +39,25 @@ impl Model {
                         class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
                         disabled={self.lobby_chat_input.is_empty()}
                         onclick=self.link.callback(move |_| {
-                            Msg::WsAction(WsAction::SendData(send_lobby_message.clone()))
+                            Msg::WsAction(WsAction::SendLobbyMessage(send_lobby_message.clone()))
                         })
                     >
                         { "Send" }
                     </button>
+                    <div>
+                    {
+                        for self.chat_messages.iter().map(|m| {
+                            html! {
+                                <div class="flex">
+                                    <div class="m4 bg-green-200 rounded-lg">
+                                        { m.name.clone() }
+                                    </div>
+                                    { m.body.clone() }
+                                </div>
+                            }
+                        })
+                    }
+                    </div>
                 </div>
             }
         } else {
@@ -93,7 +107,7 @@ impl Model {
                             class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
                             disabled={self.ws.is_none() || self.name.is_empty()}
                             onclick=self.link.callback(move |_| {
-                                Msg::WsAction(WsAction::SendData(create_lobby_message.clone()))
+                                Msg::WsAction(WsAction::SendLobbyCreateOrJoin(create_lobby_message.clone()))
                             })
                         >
                             { "Create lobby" }
@@ -111,7 +125,7 @@ impl Model {
                             class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
                             disabled={self.ws.is_none() || self.name.is_empty()}
                             onclick=self.link.callback(move |_| {
-                                Msg::WsAction(WsAction::SendData(join_lobby_message.clone()))
+                                Msg::WsAction(WsAction::SendLobbyCreateOrJoin(join_lobby_message.clone()))
                             })
                         >
                             { "Join lobby" }
@@ -175,7 +189,8 @@ impl Model {
 
 enum WsAction {
     Connect,
-    SendData(Value),
+    SendLobbyMessage(Value),
+    SendLobbyCreateOrJoin(Value),
     Disconnect,
     Lost,
 }
@@ -183,16 +198,10 @@ enum WsAction {
 enum Msg {
     Ignore,
     WsAction(WsAction),
-    WsReady(Result<WsResponse, Error>),
+    WsReady(Result<messages::Message, Error>),
     NameInputChange(String),
     LobbyCodeInputChange(String),
     LobbyChatInputChange(String),
-}
-
-/// This type is an expected response from a websocket connection.
-#[derive(Deserialize, Debug)]
-pub struct WsResponse {
-    lobby: messages::Lobby,
 }
 
 impl Component for Model {
@@ -210,6 +219,7 @@ impl Component for Model {
             lobby_code_input: "".to_owned(),
             lobby_chat_input: "".to_owned(),
             connecting_to_lobby: false,
+            chat_messages: vec![],
             ws: None,
         }
     }
@@ -237,9 +247,19 @@ impl Component for Model {
                     .unwrap();
                     self.ws = Some(task);
                 }
-                WsAction::SendData(data) => {
+                WsAction::SendLobbyCreateOrJoin(data) => {
                     log::info!("Sending data");
                     self.connecting_to_lobby = true;
+                    self.ws.as_mut().unwrap().send(Json(&data));
+                }
+                WsAction::SendLobbyMessage(data) => {
+                    log::info!("Sending data");
+                    // Optimistic UI. We assume that anything we send will be received
+                    self.chat_messages.push(messages::LobbyMessageResponse {
+                        name: self.name.clone(),
+                        body: self.lobby_chat_input.clone(),
+                    });
+                    self.lobby_chat_input = "".to_owned();
                     self.ws.as_mut().unwrap().send(Json(&data));
                 }
                 WsAction::Disconnect => {
@@ -254,7 +274,20 @@ impl Component for Model {
             Msg::WsReady(response) => {
                 log::info!("Received message from WebSocket, {:?}", &response);
                 self.connecting_to_lobby = false;
-                self.lobby = response.map(|data| data.lobby).ok();
+                match response.expect("Received bad message") {
+                    messages::Message::LobbyActionCreateResponse(m) => {
+                        self.lobby = Some(m.lobby);
+                    }
+                    messages::Message::LobbyActionJoinResponse(m) => {
+                        self.lobby = Some(m.lobby);
+                    }
+                    messages::Message::LobbyMessageResponse(m) => {
+                        self.chat_messages.push(m);
+                    }
+                    _ => {
+                        log::error!("Received non-matched message");
+                    }
+                }
             }
             Msg::NameInputChange(new_value) => {
                 self.name = new_value;

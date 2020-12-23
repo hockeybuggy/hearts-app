@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 common = { path = "../common" }
+messages = { path = "../messages" }
 chrono = "0.4"
 dynomite = "0.10"
 env_logger = "0.8"

@@ -1,4 +1,3 @@
-use chrono::Utc;
 use dynomite::dynamodb::DynamoDbClient;
 use lambda::{handler_fn, Context};
 use serde::Deserialize;
@@ -6,14 +5,6 @@ use serde_json::{json, Value};
 
 use common::lobby;
 use common::websocket_client::WebSocketClient;
-
-/// the structure of the client payload (action aside)
-#[derive(Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "snake_case")]
-struct Message {
-    lobby_code: String,
-    body: String,
-}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -48,29 +39,37 @@ async fn deliver(
     log::info!("recv {}", event.body);
 
     let ddb_client = DynamoDbClient::new(Default::default());
-    let now = Utc::now();
     let endpoint = endpoint(&event.request_context);
     let connection_id = event.request_context.connection_id;
 
-    let message = serde_json::from_str::<Message>(&event.body)
+    let message = serde_json::from_str::<messages::LobbyMessage>(&event.body)
         .ok()
         .expect("Invalid message");
     let lobby_code = message.lobby_code;
     let body = message.body;
 
     let lobby = lobby::LobbyService::get(&ddb_client, &lobby_code).await?;
-    // TODO Send the message body to all users who are not the current user
+
+    // Send the message body to all users who are not the current user
+    let sender = lobby
+        .players
+        .iter()
+        .find(|p| p.connection_id == connection_id);
 
     for player in lobby
         .players
         .iter()
-        .filter(|p| p.connection_id == connection_id)
+        .filter(|p| p.connection_id != connection_id)
     {
         let ws_client = WebSocketClient::new(&endpoint);
         ws_client
             .post_to_connection(
                 &player.connection_id,
-                json!({"type": "message", "at": now, "body": body.clone()}),
+                messages::Message::LobbyMessageResponse(messages::LobbyMessageResponse {
+                    // TODO don't unwrap here.
+                    name: sender.unwrap().name.clone(),
+                    body: body.clone(),
+                }),
             )
             .await?;
     }
