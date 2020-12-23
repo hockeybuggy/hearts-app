@@ -184,6 +184,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0dcbc35f504eb6fc275a6d20e4ebcda18cf50d40ba6fabff8c711fa16cb3b16"
 
 [[package]]
+name = "bytes"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad1f8e949d755f9d79112b5bb46938e0ef9d3804a0b16dfab13aafcaa5f0fa72"
+
+[[package]]
 name = "cc"
 version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -243,7 +249,7 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
- "tokio 0.2.24",
+ "tokio 1.0.0",
 ]
 
 [[package]]
@@ -326,7 +332,7 @@ version = "0.1.0"
 dependencies = [
  "lambda",
  "serde_json",
- "tokio 0.2.24",
+ "tokio 1.0.0",
 ]
 
 [[package]]
@@ -721,7 +727,7 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
- "tokio 0.2.24",
+ "tokio 1.0.0",
  "uuid",
 ]
 
@@ -1753,7 +1759,7 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
- "tokio 0.2.24",
+ "tokio 1.0.0",
 ]
 
 [[package]]
@@ -2106,6 +2112,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f4bfdcbd00fa893ac0549b38aa27080636a0104b0d0c38475a99439405e1df8"
+dependencies = [
+ "autocfg 1.0.1",
+ "bytes 1.0.0",
+ "libc",
+ "memchr",
+ "mio 0.7.6",
+ "num_cpus",
+ "once_cell",
+ "parking_lot",
+ "pin-project-lite 0.2.0",
+ "signal-hook-registry",
+ "tokio-macros 1.0.0",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "tokio-macros"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2121,6 +2147,17 @@ name = "tokio-macros"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21d30fdbb5dc2d8f91049691aa1a9d4d4ae422a21c334ce8936e5886d30c5c45"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42517d2975ca3114b22a16192634e8241dc5cc1f130be194645970cc1c371494"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote",
