@@ -1,2 +1,2 @@
 [workspace]
-members = ["send", "hearts", "connections", "default", "e2e_tests"]
+members = ["send", "hearts", "connections", "default", "e2e_tests", "frontend"]
