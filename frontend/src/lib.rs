@@ -14,6 +14,7 @@ struct Model {
     lobby: Option<Lobby>,
     name: String,
     lobby_code_input: String,
+    connecting_to_lobby: bool,
     ws: Option<WebSocketTask>,
 }
 
@@ -31,6 +32,12 @@ impl Model {
                 <div>
                     <p>{ "Lobby code:" }{ lobby.id.clone() }</p>
                     <p>{ "All players: "}{ player_names }</p>
+                </div>
+            }
+        } else if self.connecting_to_lobby {
+            html! {
+                <div>
+                    <p>{ "Loadn'" }</p>
                 </div>
             }
         } else {
@@ -184,6 +191,7 @@ impl Component for Model {
             name: "".to_owned(),
             lobby: None,
             lobby_code_input: "".to_owned(),
+            connecting_to_lobby: false,
             ws: None,
         }
     }
@@ -213,6 +221,7 @@ impl Component for Model {
                 }
                 WsAction::SendData(data) => {
                     log::info!("Sending data");
+                    self.connecting_to_lobby = true;
                     self.ws.as_mut().unwrap().send(Json(&data));
                 }
                 WsAction::Disconnect => {
@@ -226,6 +235,7 @@ impl Component for Model {
             },
             Msg::WsReady(response) => {
                 log::info!("Received message from WebSocket, {:?}", &response);
+                self.connecting_to_lobby = false;
                 self.lobby = response.map(|data| data.lobby).ok();
             }
             Msg::NameInputChange(new_value) => {
