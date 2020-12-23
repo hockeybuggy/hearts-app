@@ -1,33 +1,18 @@
-use dynomite::{
-    dynamodb::{DeleteItemInput, DynamoDb, DynamoDbClient, ScanError, ScanInput},
-    AttributeError, DynamoDbExt, FromAttributes, Item,
-};
-use futures::TryStreamExt;
+use chrono::Utc;
+use dynomite::dynamodb::DynamoDbClient;
 use lambda::{handler_fn, Context};
-use rusoto_apigatewaymanagementapi::{
-    ApiGatewayManagementApi, ApiGatewayManagementApiClient, PostToConnectionError,
-    PostToConnectionRequest,
-};
-use rusoto_core::{Region, RusotoError};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::env;
 
-thread_local!(
-    static DDB: DynamoDbClient = DynamoDbClient::new(Default::default());
-);
-
-#[derive(Item)]
-struct Connection {
-    #[dynomite(partition_key)]
-    id: String,
-}
+use common::lobby;
+use common::websocket_client::WebSocketClient;
 
 /// the structure of the client payload (action aside)
 #[derive(Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 struct Message {
-    message: Option<String>,
+    lobby_code: String,
+    body: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -37,23 +22,12 @@ struct Event {
     body: String, // parse this into json
 }
 
-impl Event {
-    fn message(&self) -> Option<String> {
-        serde_json::from_str::<Message>(&self.body).ok()?.message
-    }
-}
-
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct RequestContext {
+    connection_id: String,
     domain_name: String,
     stage: String,
-}
-
-#[derive(Debug)]
-enum Error {
-    Scan(RusotoError<ScanError>),
-    Deserialize(AttributeError),
 }
 
 #[tokio::main]
@@ -72,66 +46,33 @@ async fn deliver(
     _context: Context,
 ) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
     log::info!("recv {}", event.body);
-    let message = event.message().unwrap_or_else(|| "🏓 pong".into());
-    let table_name = env::var("tableName")?;
-    let client = ApiGatewayManagementApiClient::new(Region::Custom {
-        name: Region::CaCentral1.name().into(),
-        endpoint: endpoint(&event.request_context),
-    });
-    let delivery = DDB.with(|ddb| {
-        let sweeper = ddb.clone();
-        ddb.clone()
-            .scan_pages(ScanInput {
-                table_name,
-                ..ScanInput::default()
-            })
-            .map_err(Error::Scan)
-            .try_for_each(move |item| {
-                let client = client.clone();
-                let sweeper = sweeper.clone();
-                let message = message.clone();
-                async move {
-                    match Connection::from_attrs(item) {
-                        Err(err) => return Err(Error::Deserialize(err)),
-                        Ok(connection) => {
-                            // https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/apigateway-how-to-call-websocket-api-connections.html
-                            if let Err(RusotoError::Service(PostToConnectionError::Gone(_))) =
-                                client
-                                    .post_to_connection(PostToConnectionRequest {
-                                        connection_id: connection.id.clone(),
-                                        data: serde_json::to_vec(&json!({ "message": message }))
-                                            .unwrap_or_default()
-                                            .into(),
-                                    })
-                                    .await
-                            {
-                                log::info!("hanging up on disconnected client {}", connection.id);
-                                if let Err(err) = sweeper
-                                    .delete_item(DeleteItemInput {
-                                        table_name: env::var("tableName")
-                                            .expect("failed to resolve table"),
-                                        key: connection.key(),
-                                        ..DeleteItemInput::default()
-                                    })
-                                    .await
-                                {
-                                    log::info!(
-                                        "failed to delete connection {}: {}",
-                                        connection.id,
-                                        err
-                                    );
-                                }
-                            }
-                        }
-                    }
 
-                    Ok(())
-                }
-            })
-    });
+    let ddb_client = DynamoDbClient::new(Default::default());
+    let now = Utc::now();
+    let endpoint = endpoint(&event.request_context);
+    let connection_id = event.request_context.connection_id;
 
-    if let Err(err) = delivery.await {
-        log::error!("failed to deliver message: {:?}", err);
+    let message = serde_json::from_str::<Message>(&event.body)
+        .ok()
+        .expect("Invalid message");
+    let lobby_code = message.lobby_code;
+    let body = message.body;
+
+    let lobby = lobby::LobbyService::get(&ddb_client, &lobby_code).await?;
+    // TODO Send the message body to all users who are not the current user
+
+    for player in lobby
+        .players
+        .iter()
+        .filter(|p| p.connection_id == connection_id)
+    {
+        let ws_client = WebSocketClient::new(&endpoint);
+        ws_client
+            .post_to_connection(
+                &player.connection_id,
+                json!({"type": "message", "at": now, "body": body.clone()}),
+            )
+            .await?;
     }
 
     Ok(json!({
@@ -141,31 +82,31 @@ async fn deliver(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
-    #[test]
-    fn deserialize_send_event_with_message() {
-        let event =
-            serde_json::from_str::<Event>(include_str!("../tests/data/send-something.json"))
-                .expect("failed to deserialize send event");
-        assert_eq!(event.message().and_then(|m| Some(m)), Some("howdy".into()))
-    }
+    // #[test]
+    // fn deserialize_send_event_with_message() {
+    //     let event =
+    //         serde_json::from_str::<Event>(include_str!("../tests/data/send-something.json"))
+    //             .expect("failed to deserialize send event");
+    //     assert_eq!(event.message().and_then(|m| Some(m)), Some("howdy".into()))
+    // }
 
-    #[test]
-    fn deserialize_send_event_without_message() {
-        let event = serde_json::from_str::<Event>(include_str!("../tests/data/send-nothing.json"))
-            .expect("failed to deserialize send event");
-        assert_eq!(event.message(), None)
-    }
+    // #[test]
+    // fn deserialize_send_event_without_message() {
+    //     let event = serde_json::from_str::<Event>(include_str!("../tests/data/send-nothing.json"))
+    //         .expect("failed to deserialize send event");
+    //     assert_eq!(event.message(), None)
+    // }
 
-    #[test]
-    fn formats_endpoint() {
-        assert_eq!(
-            endpoint(&RequestContext {
-                domain_name: "xxx.execute-api.ca-central-1.amazonaws.com".into(),
-                stage: "dev".into()
-            }),
-            "https://xxx.execute-api.ca-central-1.amazonaws.com/dev"
-        )
-    }
+    // #[test]
+    // fn formats_endpoint() {
+    //     assert_eq!(
+    //         endpoint(&RequestContext {
+    //             domain_name: "xxx.execute-api.ca-central-1.amazonaws.com".into(),
+    //             stage: "dev".into()
+    //         }),
+    //         "https://xxx.execute-api.ca-central-1.amazonaws.com/dev"
+    //     )
+    // }
 }

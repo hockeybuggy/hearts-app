@@ -490,8 +490,8 @@ name = "frontend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "common",
  "log",
+ "messages",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1013,6 +1013,13 @@ name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
+
+[[package]]
+name = "messages"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "mio"
@@ -1768,13 +1775,13 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 name = "send"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "common",
  "dynomite",
  "env_logger",
  "futures",
  "lambda",
  "log",
- "rusoto_apigatewaymanagementapi",
- "rusoto_core",
  "serde",
  "serde_json",
  "tokio 1.0.0",

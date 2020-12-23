@@ -9,11 +9,9 @@ use yew::format::Json;
 use yew::prelude::*;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 
-use common::lobby;
-
 struct Model {
     link: ComponentLink<Self>,
-    lobby: Option<lobby::Lobby>,
+    lobby: Option<messages::Lobby>,
     name: String,
     lobby_code_input: String,
     lobby_chat_input: String,
@@ -27,7 +25,7 @@ impl Model {
             let send_lobby_message = json!({
               "action": "send",
               "lobby_code": lobby.id.clone(),
-              "message": self.name.clone(),
+              "body": self.lobby_chat_input.clone(),
             });
             html! {
                 <div>
@@ -194,7 +192,7 @@ enum Msg {
 /// This type is an expected response from a websocket connection.
 #[derive(Deserialize, Debug)]
 pub struct WsResponse {
-    lobby: lobby::Lobby,
+    lobby: messages::Lobby,
 }
 
 impl Component for Model {

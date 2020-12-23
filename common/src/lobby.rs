@@ -125,6 +125,20 @@ impl LobbyService {
 
         return Ok(new_lobby);
     }
+
+    pub async fn get(
+        ddb: &DynamoDbClient,
+        lobby_id: &LobbyId,
+    ) -> Result<Lobby, Box<dyn std::error::Error + Sync + Send + 'static>> {
+        log::info!("Get: {}", lobby_id);
+
+        let lobby = LobbyRepo::get(ddb, lobby_id)
+            .await?
+            .expect("Could not get lobby");
+        log::info!("LobbyService::get result: {:?}", &lobby);
+
+        return Ok(lobby);
+    }
 }
 
 struct LobbyRepo;
