@@ -9,16 +9,50 @@ use yew::format::Json;
 use yew::prelude::*;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 
+use common::lobby;
+
 struct Model {
     link: ComponentLink<Self>,
-    lobby: Option<Lobby>,
+    lobby: Option<lobby::Lobby>,
     name: String,
     lobby_code_input: String,
+    lobby_chat_input: String,
     connecting_to_lobby: bool,
     ws: Option<WebSocketTask>,
 }
 
 impl Model {
+    fn view_messages(&self) -> Html {
+        if let Some(lobby) = &self.lobby {
+            let send_lobby_message = json!({
+              "action": "send",
+              "lobby_code": lobby.id.clone(),
+              "message": self.name.clone(),
+            });
+            html! {
+                <div>
+                    <input
+                        value=&self.lobby_chat_input
+                        oninput=self.link.callback(|e: InputData| Msg::LobbyChatInputChange(e.value))
+                        placeholder="Say something.."
+                        class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                    />
+                    <button
+                        class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                        disabled={self.lobby_chat_input.is_empty()}
+                        onclick=self.link.callback(move |_| {
+                            Msg::WsAction(WsAction::SendData(send_lobby_message.clone()))
+                        })
+                    >
+                        { "Send" }
+                    </button>
+                </div>
+            }
+        } else {
+            html! {}
+        }
+    }
+
     fn view_lobby(&self) -> Html {
         if let Some(lobby) = &self.lobby {
             let player_names = lobby
@@ -154,28 +188,13 @@ enum Msg {
     WsReady(Result<WsResponse, Error>),
     NameInputChange(String),
     LobbyCodeInputChange(String),
-}
-
-// TODO the messages between the client and the server should be extracted into another crate.
-
-#[derive(Deserialize, Debug)]
-pub struct Player {
-    pub name: String,
-    pub connection_id: String,
-}
-
-pub type LobbyId = String;
-
-#[derive(Deserialize, Debug)]
-pub struct Lobby {
-    id: LobbyId,
-    pub players: Vec<Player>,
+    LobbyChatInputChange(String),
 }
 
 /// This type is an expected response from a websocket connection.
 #[derive(Deserialize, Debug)]
 pub struct WsResponse {
-    lobby: Lobby,
+    lobby: lobby::Lobby,
 }
 
 impl Component for Model {
@@ -191,6 +210,7 @@ impl Component for Model {
             name: "".to_owned(),
             lobby: None,
             lobby_code_input: "".to_owned(),
+            lobby_chat_input: "".to_owned(),
             connecting_to_lobby: false,
             ws: None,
         }
@@ -244,6 +264,9 @@ impl Component for Model {
             Msg::LobbyCodeInputChange(new_value) => {
                 self.lobby_code_input = new_value;
             }
+            Msg::LobbyChatInputChange(new_value) => {
+                self.lobby_chat_input = new_value;
+            }
         }
         true
     }
@@ -264,6 +287,7 @@ impl Component for Model {
                 <div>{ self.view_connection_status() }</div>
                 <div>{ self.view_name() }</div>
                 <div>{ self.view_lobby() }</div>
+                <div>{ self.view_messages() }</div>
             </div>
         }
     }

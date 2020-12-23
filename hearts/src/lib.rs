@@ -4,10 +4,8 @@ use lambda::Context;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-mod lobby;
-mod websocket_client;
-
-use websocket_client::WebSocketClient;
+use common::lobby;
+use common::websocket_client::WebSocketClient;
 
 #[derive(Deserialize, Debug, PartialEq)]
 struct LobbyActionCreate {

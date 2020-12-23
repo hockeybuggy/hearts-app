@@ -237,6 +237,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dynomite",
+ "env_logger",
+ "futures",
+ "lambda",
+ "log",
+ "nanoid",
+ "rusoto_apigatewaymanagementapi",
+ "rusoto_core",
+ "serde",
+ "serde_json",
+ "tokio 1.0.0",
+]
+
+[[package]]
 name = "connections"
 version = "0.1.0"
 dependencies = [
@@ -472,6 +490,7 @@ name = "frontend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "common",
  "log",
  "serde",
  "serde_derive",
@@ -717,18 +736,17 @@ name = "hearts"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "common",
  "dynomite",
  "env_logger",
  "futures",
  "lambda",
  "log",
- "nanoid",
  "rusoto_apigatewaymanagementapi",
  "rusoto_core",
  "serde",
  "serde_json",
  "tokio 1.0.0",
- "uuid",
 ]
 
 [[package]]
@@ -2370,7 +2388,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fde2f6a4bea1d6e007c4ad38c6839fa71cbb63b6dbf5b595aa38dc9b1093c11"
 dependencies = [
  "rand 0.7.3",
- "serde",
 ]
 
 [[package]]
