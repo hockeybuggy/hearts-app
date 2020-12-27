@@ -1,4 +1,4 @@
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 use wasm_bindgen::prelude::*;
 
@@ -8,18 +8,147 @@ use yew::format::Json;
 use yew::prelude::*;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 
+struct OutOfLobbyData {
+    lobby_code_input: String,
+    name_input: String,
+}
+
+enum Scene {
+    OutOfLobby(OutOfLobbyData),
+    Lobby,
+}
+
+struct Requests {
+    joining_lobby: bool,
+    creating_lobby: bool,
+}
+
 struct Model {
     link: ComponentLink<Self>,
-    lobby: Option<messages::Lobby>,
-    name: String,
-    lobby_code_input: String,
-    lobby_chat_input: String,
-    connecting_to_lobby: bool,
-    chat_messages: Vec<messages::LobbyMessageResponse>,
+    scene: Scene,
+
     ws: Option<WebSocketTask>,
+
+    lobby_chat_input: String,
+
+    requests: Requests,
+
+    name: String,
+    lobby: Option<messages::Lobby>,
+    chat_messages: Vec<messages::LobbyMessageResponse>,
 }
 
 impl Model {
+    fn scene_out_of_lobby(&self) -> Html {
+        let create_lobby_message = json!({
+          "action": "hearts",
+          "type": "lobby_action_create",
+          "name": self.name.clone(),
+        });
+        let join_lobby_message = json!({
+          "action": "hearts",
+          "type": "lobby_action_join",
+          "lobby_code": self.lobby_code_input.clone(),
+          "name": self.name.clone(),
+        });
+
+        html! {
+            <>
+                <div>
+                    <h1 class="text-xl text-center pb-4">{"Hearts app"}</h1>
+
+                    <p>{"Play a game of the trick based card game hearts with your friends."}</p>
+                    <p>{"This is a work in progress by Douglas Anderson."}</p>
+
+                </div>
+
+                <div>
+                    <p class="text-center">{ "Not currently in a lobby." }</p>
+                </div>
+
+                <div>
+                    <h2>{"Step 1"}</h2>
+
+                    <div>
+                        <label for="name-input">{"Lobby code:"}</label>
+                        <input
+                            id="name-input"
+                            value=&self.name
+                            oninput=self.link.callback(|e: InputData| Msg::NameInputChange(e.value))
+                            placeholder="Pick a name your friends will see."
+                            class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                        />
+                    </div>
+
+                </div>
+
+                <div class="flex flex-col">
+                    <h2>{"Step 2"}</h2>
+                    <div class="p-2">
+                        <label for="lobby-code-input">{"Lobby code:"}</label>
+                        <input
+                            id="lobby-code-input"
+                            value=&self.lobby_code_input
+                            oninput=self.link.callback(|e: InputData| Msg::LobbyCodeInputChange(e.value))
+                            placeholder="Get this from a friend"
+                            class="m-4 p-2 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                        />
+                    </div>
+                    <div class="flex flex-row">
+                        <button
+                            class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                            disabled={self.requests.creating_lobby || self.requests.joining_lobby}
+                            onclick=self.link.callback(move |_| {
+                                Msg::WsAction(WsAction::SendLobbyJoin(join_lobby_message.clone()))
+                            })
+                        >
+                            { if self.requests.joining_lobby { self.view_loading_spinner() } else { html!{} } }
+                            { "Join lobby" }
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <hr />
+                    <p class="text-center">{ "Or" }</p>
+                </div>
+
+                <div class="flex flex-row">
+                    <button
+                        class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                        disabled={self.requests.creating_lobby || self.requests.joining_lobby}
+                        onclick=self.link.callback(move |_| {
+                            Msg::WsAction(WsAction::SendLobbyCreate(create_lobby_message.clone()))
+                        })
+                    >
+                        { if self.requests.creating_lobby { self.view_loading_spinner() } else { html!{} } }
+                        { "Create lobby" }
+                    </button>
+                </div>
+
+            </>
+        }
+    }
+
+    fn scene_lobby(&self) -> Html {
+        html! {
+            <div>
+                <div>{ self.view_lobby() }</div>
+                <div>{ self.view_messages() }</div>
+                <div>{ self.view_connection_status() }</div>
+            </div>
+        }
+    }
+
+    fn view_loading_spinner(&self) -> Html {
+        html! {
+            <svg class="animate-spin inline-block mr-3 h-5 w-5 text-grey-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        }
+    }
+
     fn view_messages(&self) -> Html {
         if let Some(lobby) = &self.lobby {
             let send_lobby_message = json!({
@@ -80,81 +209,8 @@ impl Model {
                     <p>{ "All players: "}{ player_names }</p>
                 </div>
             }
-        } else if self.connecting_to_lobby {
-            html! {
-                <div>
-                    <p>{ "Loadn'" }</p>
-                </div>
-            }
         } else {
-            let create_lobby_message = json!({
-              "action": "hearts",
-              "type": "lobby_action_create",
-              "name": self.name.clone(),
-            });
-            let join_lobby_message = json!({
-              "action": "hearts",
-              "type": "lobby_action_join",
-              "lobby_code": self.lobby_code_input.clone(),
-              "name": self.name.clone(),
-            });
-            html! {
-                <div>
-                    <p>{ "Not in a lobby." }</p>
-
-                    <div>
-                        <button
-                            class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
-                            disabled={self.ws.is_none() || self.name.is_empty()}
-                            onclick=self.link.callback(move |_| {
-                                Msg::WsAction(WsAction::SendLobbyCreateOrJoin(create_lobby_message.clone()))
-                            })
-                        >
-                            { "Create lobby" }
-                        </button>
-                    </div>
-
-                    <div>
-                        <input
-                            value=&self.lobby_code_input
-                            oninput=self.link.callback(|e: InputData| Msg::LobbyCodeInputChange(e.value))
-                            placeholder="Lobby code"
-                            class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
-                        />
-                        <button
-                            class="w-32 m-4 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
-                            disabled={self.ws.is_none() || self.name.is_empty()}
-                            onclick=self.link.callback(move |_| {
-                                Msg::WsAction(WsAction::SendLobbyCreateOrJoin(join_lobby_message.clone()))
-                            })
-                        >
-                            { "Join lobby" }
-                        </button>
-                    </div>
-                </div>
-            }
-        }
-    }
-
-    fn view_name(&self) -> Html {
-        if self.lobby.is_some() {
-            html! {
-                <div>
-                    { "Your name: " }
-                    { self.name.clone() }
-                </div>
-            }
-        } else {
-            html! {
-                <div>
-                    <input
-                        value=&self.name
-                        oninput=self.link.callback(|e: InputData| Msg::NameInputChange(e.value))
-                        placeholder="Pick a name your friends will see."
-                        class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
-                    />
-                </div>
-            }
+            html! {}
         }
     }
 
@@ -190,7 +246,8 @@ impl Model {
 enum WsAction {
     Connect,
     SendLobbyMessage(Value),
-    SendLobbyCreateOrJoin(Value),
+    SendLobbyCreate(Value),
+    SendLobbyJoin(Value),
     Disconnect,
     Lost,
 }
@@ -214,11 +271,15 @@ impl Component for Model {
     ) -> Self {
         Self {
             link,
+            scene: Scene::OutOfLobby,
             name: "".to_owned(),
             lobby: None,
             lobby_code_input: "".to_owned(),
             lobby_chat_input: "".to_owned(),
-            connecting_to_lobby: false,
+            requests: Requests {
+                creating_lobby: false,
+                joining_lobby: false,
+            },
             chat_messages: vec![],
             ws: None,
         }
@@ -247,9 +308,14 @@ impl Component for Model {
                     .unwrap();
                     self.ws = Some(task);
                 }
-                WsAction::SendLobbyCreateOrJoin(data) => {
+                WsAction::SendLobbyCreate(data) => {
                     log::info!("Sending data");
-                    self.connecting_to_lobby = true;
+                    self.requests.creating_lobby = true;
+                    self.ws.as_mut().unwrap().send(Json(&data));
+                }
+                WsAction::SendLobbyJoin(data) => {
+                    log::info!("Sending data");
+                    self.requests.joining_lobby = true;
                     self.ws.as_mut().unwrap().send(Json(&data));
                 }
                 WsAction::SendLobbyMessage(data) => {
@@ -273,12 +339,13 @@ impl Component for Model {
             },
             Msg::WsReady(response) => {
                 log::info!("Received message from WebSocket, {:?}", &response);
-                self.connecting_to_lobby = false;
                 match response.expect("Received bad message") {
                     messages::Message::LobbyActionCreateResponse(m) => {
+                        self.requests.creating_lobby = false;
                         self.lobby = Some(m.lobby);
                     }
                     messages::Message::LobbyActionJoinResponse(m) => {
+                        self.requests.joining_lobby = false;
                         self.lobby = Some(m.lobby);
                     }
                     messages::Message::LobbyMessageResponse(m) => {
@@ -313,12 +380,15 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
+        let scene = match self.scene {
+            Scene::OutOfLobby => self.scene_out_of_lobby(),
+            Scene::Lobby => self.scene_lobby(),
+        };
+
         html! {
-            <div>
-                <div>{ self.view_connection_status() }</div>
-                <div>{ self.view_name() }</div>
-                <div>{ self.view_lobby() }</div>
-                <div>{ self.view_messages() }</div>
+            <div class="flex flex-col justify-between w-auto h-screen bg-green-50">
+                {scene}
+                <footer>{ self.view_connection_status() }</footer>
             </div>
         }
     }
