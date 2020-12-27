@@ -14,8 +14,12 @@ struct OutOfLobbyData {
 }
 
 enum Scene {
-    OutOfLobby(OutOfLobbyData),
+    OutOfLobby,
     Lobby,
+}
+
+struct SceneData {
+    out_of_lobby: OutOfLobbyData,
 }
 
 struct Requests {
@@ -26,6 +30,7 @@ struct Requests {
 struct Model {
     link: ComponentLink<Self>,
     scene: Scene,
+    scene_data: SceneData,
 
     ws: Option<WebSocketTask>,
 
@@ -40,18 +45,6 @@ struct Model {
 
 impl Model {
     fn scene_out_of_lobby(&self) -> Html {
-        let create_lobby_message = json!({
-          "action": "hearts",
-          "type": "lobby_action_create",
-          "name": self.name.clone(),
-        });
-        let join_lobby_message = json!({
-          "action": "hearts",
-          "type": "lobby_action_join",
-          "lobby_code": self.lobby_code_input.clone(),
-          "name": self.name.clone(),
-        });
-
         html! {
             <>
                 <div>
@@ -66,46 +59,88 @@ impl Model {
                     <p class="text-center">{ "Not currently in a lobby." }</p>
                 </div>
 
-                <div>
-                    <h2>{"Step 1"}</h2>
+                { if self.name.is_empty() { self.view_name_input() } else { self.view_create_or_join() } }
 
-                    <div>
-                        <label for="name-input">{"Lobby code:"}</label>
-                        <input
-                            id="name-input"
-                            value=&self.name
-                            oninput=self.link.callback(|e: InputData| Msg::NameInputChange(e.value))
-                            placeholder="Pick a name your friends will see."
-                            class="m-4 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
-                        />
-                    </div>
+            </>
+        }
+    }
 
+    fn view_name_input(&self) -> Html {
+        html! {
+            <div class="flex flex-col p-2 bg-white shadow-lg">
+                <h2>{"Step 1"}</h2>
+
+               <div class="flex flex-row">
+                    <label
+                        for="name-input"
+                        class="self-center"
+                    >
+                        {"Name:"}
+                    </label>
+                    <input
+                        id="name-input"
+                        value=&self.scene_data.out_of_lobby.name_input
+                        oninput=self.link.callback(|e: InputData| Msg::NameInputChange(e.value))
+                        placeholder="Pick a name your friends will see."
+                        class="m-4 p-2 flex-grow focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                    />
                 </div>
 
-                <div class="flex flex-col">
-                    <h2>{"Step 2"}</h2>
-                    <div class="p-2">
-                        <label for="lobby-code-input">{"Lobby code:"}</label>
-                        <input
-                            id="lobby-code-input"
-                            value=&self.lobby_code_input
-                            oninput=self.link.callback(|e: InputData| Msg::LobbyCodeInputChange(e.value))
-                            placeholder="Get this from a friend"
-                            class="m-4 p-2 focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
-                        />
-                    </div>
-                    <div class="flex flex-row">
-                        <button
-                            class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
-                            disabled={self.requests.creating_lobby || self.requests.joining_lobby}
-                            onclick=self.link.callback(move |_| {
-                                Msg::WsAction(WsAction::SendLobbyJoin(join_lobby_message.clone()))
-                            })
-                        >
-                            { if self.requests.joining_lobby { self.view_loading_spinner() } else { html!{} } }
-                            { "Join lobby" }
-                        </button>
-                    </div>
+                <div class="flex flex-row">
+                    <button
+                        class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                        onclick=self.link.callback(move |_| { Msg::NameInputConfirm })
+                    >
+                        { "OK" }
+                    </button>
+                </div>
+
+            </div>
+        }
+    }
+
+    fn view_create_or_join(&self) -> Html {
+        let create_lobby_message = json!({
+          "action": "hearts",
+          "type": "lobby_action_create",
+          "name": self.scene_data.out_of_lobby.name_input.clone(),
+        });
+        let join_lobby_message = json!({
+          "action": "hearts",
+          "type": "lobby_action_join",
+          "lobby_code": self.scene_data.out_of_lobby.lobby_code_input.clone(),
+          "name": self.scene_data.out_of_lobby.name_input.clone(),
+        });
+        html! {
+            <div class="flex flex-col p-2 bg-white shadow-lg">
+                <h2>{"Step 2"}</h2>
+
+                <div class="flex flex-row">
+                    <label
+                        for="lobby_code-input"
+                        class="self-center"
+                    >
+                        {"Lobby code:"}
+                    </label>
+                    <input
+                        id="lobby-code-input"
+                        value=&self.scene_data.out_of_lobby.lobby_code_input
+                        oninput=self.link.callback(|e: InputData| Msg::LobbyCodeInputChange(e.value))
+                        placeholder="Get this from a friend"
+                        class="m-4 p-2 flex-grow focus:ring-2 focus:ring-blue-600 rounded-lg shadow-md"
+                    />
+                </div>
+                <div class="flex flex-row">
+                    <button
+                        class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                        disabled={self.requests.creating_lobby || self.requests.joining_lobby}
+                        onclick=self.link.callback(move |_| {
+                            Msg::WsAction(WsAction::SendLobbyJoin(join_lobby_message.clone()))
+                        })
+                    >
+                        { if self.requests.joining_lobby { self.view_loading_spinner() } else { html!{} } }
+                        { "Join lobby" }
+                    </button>
                 </div>
 
                 <div>
@@ -113,20 +148,17 @@ impl Model {
                     <p class="text-center">{ "Or" }</p>
                 </div>
 
-                <div class="flex flex-row">
-                    <button
-                        class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
-                        disabled={self.requests.creating_lobby || self.requests.joining_lobby}
-                        onclick=self.link.callback(move |_| {
-                            Msg::WsAction(WsAction::SendLobbyCreate(create_lobby_message.clone()))
-                        })
-                    >
-                        { if self.requests.creating_lobby { self.view_loading_spinner() } else { html!{} } }
-                        { "Create lobby" }
-                    </button>
-                </div>
-
-            </>
+                <button
+                    class="w-48 mx-auto my-4 py-2 disabled:opacity-50 bg-blue-200 hover:bg-blue-300 rounded-lg shadow-md"
+                    disabled={self.requests.creating_lobby || self.requests.joining_lobby}
+                    onclick=self.link.callback(move |_| {
+                        Msg::WsAction(WsAction::SendLobbyCreate(create_lobby_message.clone()))
+                    })
+                >
+                    { if self.requests.creating_lobby { self.view_loading_spinner() } else { html!{} } }
+                    { "Create lobby" }
+                </button>
+            </div>
         }
     }
 
@@ -135,7 +167,6 @@ impl Model {
             <div>
                 <div>{ self.view_lobby() }</div>
                 <div>{ self.view_messages() }</div>
-                <div>{ self.view_connection_status() }</div>
             </div>
         }
     }
@@ -256,6 +287,7 @@ enum Msg {
     Ignore,
     WsAction(WsAction),
     WsReady(Result<messages::Message, Error>),
+    NameInputConfirm,
     NameInputChange(String),
     LobbyCodeInputChange(String),
     LobbyChatInputChange(String),
@@ -272,9 +304,14 @@ impl Component for Model {
         Self {
             link,
             scene: Scene::OutOfLobby,
+            scene_data: SceneData {
+                out_of_lobby: OutOfLobbyData {
+                    lobby_code_input: "".to_owned(),
+                    name_input: "".to_owned(),
+                },
+            },
             name: "".to_owned(),
             lobby: None,
-            lobby_code_input: "".to_owned(),
             lobby_chat_input: "".to_owned(),
             requests: Requests {
                 creating_lobby: false,
@@ -343,10 +380,12 @@ impl Component for Model {
                     messages::Message::LobbyActionCreateResponse(m) => {
                         self.requests.creating_lobby = false;
                         self.lobby = Some(m.lobby);
+                        self.scene = Scene::Lobby;
                     }
                     messages::Message::LobbyActionJoinResponse(m) => {
                         self.requests.joining_lobby = false;
                         self.lobby = Some(m.lobby);
+                        self.scene = Scene::Lobby;
                     }
                     messages::Message::LobbyMessageResponse(m) => {
                         self.chat_messages.push(m);
@@ -357,10 +396,13 @@ impl Component for Model {
                 }
             }
             Msg::NameInputChange(new_value) => {
-                self.name = new_value;
+                self.scene_data.out_of_lobby.name_input = new_value;
+            }
+            Msg::NameInputConfirm => {
+                self.name = self.scene_data.out_of_lobby.name_input.clone();
             }
             Msg::LobbyCodeInputChange(new_value) => {
-                self.lobby_code_input = new_value;
+                self.scene_data.out_of_lobby.lobby_code_input = new_value;
             }
             Msg::LobbyChatInputChange(new_value) => {
                 self.lobby_chat_input = new_value;
@@ -386,9 +428,11 @@ impl Component for Model {
         };
 
         html! {
-            <div class="flex flex-col justify-between w-auto h-screen bg-green-50">
-                {scene}
-                <footer>{ self.view_connection_status() }</footer>
+            <div class="w-auto h-screen bg-green-50">
+                <div class="flex flex-col h-screen justify-between container mx-auto">
+                    {scene}
+                    <footer>{ self.view_connection_status() }</footer>
+                </div>
             </div>
         }
     }
