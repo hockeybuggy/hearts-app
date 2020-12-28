@@ -14,7 +14,6 @@ pub struct Lobby {
     pub players: Vec<Player>,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct LobbyActionCreate {
     pub name: String,
@@ -42,12 +41,11 @@ pub struct LobbyMessage {
     pub body: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct LobbyMessageResponse {
     pub name: String,
     pub body: String,
 }
-
 
 /// the structure of the client payload (action aside)
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
